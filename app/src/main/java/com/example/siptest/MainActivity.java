@@ -1,9 +1,10 @@
 package com.example.siptest;
 
 import android.Manifest;
-import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.graphics.Color;
 import android.net.sip.SipAudioCall;
 import android.net.sip.SipErrorCode;
 import android.net.sip.SipManager;
@@ -11,47 +12,54 @@ import android.net.sip.SipProfile;
 import android.net.sip.SipRegistrationListener;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ToggleButton;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements IncomingCallDebug {
     private static final String TAG = "MainActivity";
-
-    SipAudioCall call;
+    Handler mainHandler;
     SipManager sipManager;
     Context context = MainActivity.this;
     EditText myusername, mypassword, targetUsername;
-    Button openProfileBtn, callBtn, isRegisteredBtn, closeProfileBtn, endCallBtn;
+    Button openProfileBtn, isRegisteredBtn, closeProfileBtn,clearLogBtn;
+    ToggleButton callBtn;
     TextView logtv;
     String username, password;
     SipProfile currentuser;
     String domain = "sip.allincall.in";
+    String intentAction = "android.siptest.INCOMING_CALL";
     String peerUsername = "";
+    boolean canCall = false;
+    SipAudioCall incomingCall;
 
     SipRegistrationListener sipRegistrationListener = new SipRegistrationListener() {
         @Override
         public void onRegistering(String s) {
             Log.d(TAG, "onRegistering: SipRegisterationListener " + s);
             pushToLog("onRegistering: SipRegisterationListener " + s);
+            canCall = false;
         }
 
         @Override
         public void onRegistrationDone(String s, long l) {
             Log.d(TAG, "onRegistrationDone: SipRegisterationListener " + s + " | " + l);
             pushToLog("onRegistrationDone: SipRegisterationListener " + s + " | " + l);
+            canCall = true;
         }
 
         @Override
         public void onRegistrationFailed(String s, int i, String s1) {
             Log.d(TAG, "onRegistrationFailed: SipRegisterationListener " + SipErrorCode.toString(i));
             pushToLog("onRegistrationFailed: SipRegisterationListener " + SipErrorCode.toString(i));
+            canCall = false;
         }
     };
 
@@ -63,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
             super.onReadyToCall(call);
             Log.d(TAG, "onReadyToCall: AudioCallListener");
             pushToLog("onReadyToCall: AudioCallListener");
+            toggleCallButtonState(call);
 
         }
 
@@ -70,6 +79,7 @@ public class MainActivity extends AppCompatActivity {
         public void onCalling(SipAudioCall call) {
             super.onCalling(call);
             Log.d(TAG, "onCalling: ");
+            toggleCallButtonState(call);
 
         }
 
@@ -77,18 +87,22 @@ public class MainActivity extends AppCompatActivity {
         public void onRinging(SipAudioCall call, SipProfile caller) {
             super.onRinging(call, caller);
             Log.d(TAG, "onRinging: ");
+            toggleCallButtonState(call);
+
         }
 
         @Override
         public void onRingingBack(SipAudioCall call) {
             super.onRingingBack(call);
             Log.d(TAG, "onRingingBack: ");
+            toggleCallButtonState(call);
         }
 
         @Override
         public void onCallEstablished(SipAudioCall call) {
             super.onCallEstablished(call);
-            Log.d(TAG, "onCallEstablished: ");
+            Log.d(TAG, "onCallEstablished: SipAudioCall with " + call.getPeerProfile().getAuthUserName());
+            toggleCallButtonState(call);
             call.startAudio();
             call.setSpeakerMode(true);
             call.toggleMute();
@@ -97,24 +111,35 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onCallEnded(SipAudioCall call) {
             super.onCallEnded(call);
+            toggleCallButtonState(null);
+            Log.d(TAG, "onCallEnded: Call ended ");
+            pushToLog("onCallEnded: Call ended ");
         }
 
         @Override
         public void onCallBusy(SipAudioCall call) {
             super.onCallBusy(call);
             Log.d(TAG, "onCallBusy: ");
+            toggleCallButtonState(call);
+
         }
 
         @Override
         public void onCallHeld(SipAudioCall call) {
             super.onCallHeld(call);
             Log.d(TAG, "onCallHeld: ");
+            toggleCallButtonState(call);
+
         }
 
         @Override
         public void onError(SipAudioCall call, int errorCode, String errorMessage) {
             super.onError(call, errorCode, errorMessage);
-            Log.d(TAG, "onError: ");
+            Log.d(TAG, "onError: Call Error " + SipErrorCode.toString(errorCode));
+            Log.d(TAG, "onError: " + errorMessage);
+            pushToLog(errorMessage);
+            SipUtils.endOngoingCall(call);
+            toggleCallButtonState(null);
         }
 
 
@@ -122,8 +147,10 @@ public class MainActivity extends AppCompatActivity {
         public void onChanged(SipAudioCall call) {
             super.onChanged(call);
             Log.d(TAG, "onChanged: ");
+            toggleCallButtonState(call);
         }
     };
+    private IncomingCallReceiver callReceiver;
     private Runnable isRegisteredRunnable = new Runnable() {
         @Override
         public void run() {
@@ -134,6 +161,18 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     };
+
+    private void toggleCallButtonState(SipAudioCall call) {
+        Log.d(TAG, "toggleCallButtonState: Called " + call);
+        runOnUiThread(() -> {
+            incomingCall = call;
+            if (incomingCall == null) callBtn.setChecked(false);
+            else callBtn.setChecked(true);
+
+            boolean flag = callBtn.isChecked();
+            callBtn.setBackgroundColor(flag ? Color.RED : Color.GREEN);
+        });
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -150,9 +189,18 @@ public class MainActivity extends AppCompatActivity {
         closeProfileBtn = findViewById(R.id.unregister_btn);
         isRegisteredBtn = findViewById(R.id.isRegistered_btn);
         callBtn = findViewById(R.id.call_btn);
-        endCallBtn = findViewById(R.id.end_call_btn);
+        clearLogBtn = findViewById(R.id.clear_log_btn);
 
-        sipManager = SipManager.newInstance(context);
+        mainHandler = new Handler();
+        toggleCallButtonState(null);
+
+        IntentFilter filter = new IntentFilter();
+        SipUtils.setIntentAction(intentAction);
+        filter.addAction(intentAction);
+        callReceiver = new IncomingCallReceiver(audioCallListener, this);
+        this.registerReceiver(callReceiver, filter);
+
+        sipManager = SipUtils.getSipManager(context);
         if (sipManager == null) {
             Toast.makeText(context, "Device does not support SIP Calling", Toast.LENGTH_SHORT).show();
             Log.d(TAG, "onCreate: Sip Manager null");
@@ -163,28 +211,38 @@ public class MainActivity extends AppCompatActivity {
 
         openProfileBtn.setOnClickListener(view -> {
             Log.d(TAG, "onClick: Register Button Clicked");
-            registerProfile();
+            mainHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    openProfile();
+                }
+            });
         });
 
         closeProfileBtn.setOnClickListener(v -> {
             Log.d(TAG, "onCreate: Unregister Btn clicked");
-            unregisterProfile();
+            mainHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    closeProfile();
+                }
+            });
         });
-
-        callBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Log.d(TAG, "onClick: Call button Clicked");
+        clearLogBtn.setOnClickListener(view->{
+            logtv.setText("");
+        });
+        callBtn.setOnClickListener(view -> {
+            if (incomingCall != null) {
+                endCall();
+            } else {
+                Log.d(TAG, "onClick: Calling " + peerUsername);
+                pushToLog("Calling " + peerUsername);
                 callTarget();
             }
+            Log.d(TAG, "onClick: Call button state " + callBtn.isChecked());
         });
 
-        isRegisteredBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                new Handler().post(isRegisteredRunnable);
-            }
-        });
+        isRegisteredBtn.setOnClickListener(view -> new Handler(Looper.getMainLooper()).post(isRegisteredRunnable));
 
     }
 
@@ -210,31 +268,36 @@ public class MainActivity extends AppCompatActivity {
         String target = this.targetUsername.getText().toString();
         if (target == null || target.trim().length() == 0) {
             if (username.startsWith("6")) target = "7001";
+            else if (username.startsWith("6")) target = "6001";
         }
         targetUsername.setText(target);
         peerUsername = target;
     }
 
     private void callTarget() {
+
+        if (incomingCall != null && incomingCall.isInCall()) return;
+
         Log.d(TAG, "callTarget: Inside Call Target");
         setTarget();
-        SipProfile peer = buildLocalProfile(peerUsername, peerUsername, domain);
-        try {
-            call = sipManager.makeAudioCall(currentuser.getUriString(), peer.getUriString(), null, 30);
-            call.setListener(audioCallListener);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        SipUtils.makeAudioCall(currentuser, ("sip:" + peerUsername + "@" + domain), audioCallListener, 30);
+        callBtn.setChecked(true);
+
     }
 
-    private void registerProfile() {
+    private void endCall() {
+        SipUtils.endOngoingCall(incomingCall);
+        callBtn.setChecked(false);
+    }
+
+    private void openProfile() {
         username = myusername.getText().toString();
         password = mypassword.getText().toString();
         Log.d(TAG, "registerProfile: Trying to register " + username + ", " + password);
         setTarget();
 
         //Build local profile
-        currentuser = buildLocalProfile(username, password, domain);
+        currentuser = SipUtils.buildLocalProfile(username, password, domain);
 
         if (currentuser != null) {
             Log.d(TAG, "registerProfile: Current User Profile Created ");
@@ -245,39 +308,16 @@ public class MainActivity extends AppCompatActivity {
         }
 
         //Open profile for calls
-        Intent intent = new Intent();
-        intent.setAction("android.siptest.INCOMING_CALL");
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, Intent.FILL_IN_DATA);
-        try {
-            sipManager.open(currentuser, pendingIntent, null);
-            sipManager.setRegistrationListener(currentuser.getUriString(), sipRegistrationListener);
-            new Handler().postDelayed(isRegisteredRunnable, 10000);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        SipUtils.openSipProfile(context, currentuser, sipRegistrationListener);
 
     }
 
-    private void unregisterProfile() {
-
+    private void closeProfile() {
+        boolean closed = SipUtils.closeSipProfile(currentuser);
+        Log.d(TAG, "unregisterProfile: " + (closed ? "Sip Profile Closed Successfully" : "Sip Profile Failed to close"));
+        pushToLog("unregisterProfile: " + (closed ? "Sip Profile Closed Successfully" : "Sip Profile Failed to close"));
     }
-    private SipProfile buildLocalProfile(String username, String password, String domain) {
-        try {
 
-            SipProfile.Builder builder = new SipProfile.Builder(username, domain);
-            builder.setAuthUserName(username);
-            builder.setPassword(password);
-            builder.setAutoRegistration(true);
-            builder.setSendKeepAlive(true);
-            SipProfile profile = builder.build();
-
-            Log.d(TAG, "buildLocalProfile: URI " + profile.getUriString());
-            return profile;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
 
     public void pushToLog(final String msg) {
         new Handler(getMainLooper()).post(new Runnable() {
@@ -290,21 +330,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void closeLocalProfile() {
-        if (sipManager == null) {
-            return;
-        }
-        try {
-            if (currentuser != null) {
-                sipManager.close(currentuser.getUriString());
-            }
-        } catch (Exception ee) {
-            Log.d(TAG, "closeLocalProfile: Failed to close local profile.", ee);
-        }
+        SipUtils.closeSipProfile(currentuser);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         closeLocalProfile();
+    }
+
+    @Override
+    public void logThis(String msg) {
+        pushToLog(msg);
+        Log.d("IncomingCallReceiver", "logThis: " + msg);
     }
 }

@@ -11,7 +11,16 @@ import android.util.Log;
 
 public class SipUtils {
     private static final String TAG = "SipUtils";
+    private static String intentAction = "INCOMING_SIP_CALL";
     private static SipManager sipManager = null;
+
+    public static String getIntentAction() {
+        return intentAction;
+    }
+
+    public static void setIntentAction(String intentAction) {
+        SipUtils.intentAction = intentAction;
+    }
 
     public static SipManager getSipManager(Context context) {
         if (sipManager == null)
@@ -22,7 +31,6 @@ public class SipUtils {
 
     public static SipProfile buildLocalProfile(String username, String password, String domain) {
         try {
-
             SipProfile.Builder builder = new SipProfile.Builder(username, domain);
             builder.setAuthUserName(username);
             builder.setPassword(password);
@@ -34,15 +42,15 @@ public class SipUtils {
             return profile;
         } catch (Exception e) {
             e.printStackTrace();
+            return null;
         }
-        return null;
     }
 
-    public static void openSipProfile(Context context, SipProfile profile, SipRegistrationListener listener, String intentAction) {
+    public static void openSipProfile(Context context, SipProfile profile, SipRegistrationListener listener) {
         if (profile != null) {
             //Open profile for calls
             Intent intent = new Intent();
-            intent.setAction(intentAction);
+            intent.setAction(getIntentAction());
             PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, Intent.FILL_IN_DATA);
             try {
                 sipManager.open(profile, pendingIntent, null);
@@ -50,39 +58,48 @@ public class SipUtils {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-
         }
     }
 
-    public static void closeSipProfile(SipProfile profile) {
+    public static boolean closeSipProfile(SipProfile profile) {
         if (sipManager == null) {
-            return;
+            return false;
         }
         try {
-            if (profile != null) {
+            if (profile != null)
                 sipManager.close(profile.getUriString());
-            }
+            return true;
         } catch (Exception ee) {
             Log.d(TAG, "closeSipProfile: Failed to close local profile.", ee);
+            return false;
         }
+
     }
 
-    public static SipAudioCall makeAudioCall(SipProfile myProfile, SipProfile peerProfile, SipAudioCall.Listener listener, int timeoutInSeconds) {
+    public static void makeAudioCall(SipProfile myProfile, String peerUriString, SipAudioCall.Listener listener, int timeoutInSeconds) {
         try {
-            return sipManager.makeAudioCall(myProfile.getUriString(), peerProfile.getUriString(), listener, timeoutInSeconds);
+            sipManager.makeAudioCall(myProfile.getUriString(), peerUriString, listener, timeoutInSeconds);
         } catch (Exception e) {
             e.printStackTrace();
-            return null;
         }
     }
 
-    public static SipAudioCall takeAudioCall(Intent incomingCallIntent, SipAudioCall.Listener listener){
+    public static void takeAudioCall(Intent incomingCallIntent, SipAudioCall.Listener listener) {
 
+        try {
+            sipManager.takeAudioCall(incomingCallIntent, listener);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void endOngoingCall(SipAudioCall ongoingCall){
         try{
-            return sipManager.takeAudioCall(incomingCallIntent,listener);
+            ongoingCall.endCall();
         }catch (Exception e){
             e.printStackTrace();
-            return null;
         }
     }
+
+
 }

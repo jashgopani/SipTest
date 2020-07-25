@@ -18,7 +18,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Password"
-        android:text="6001"
+        android:text="ai@123$"
         android:id="@+id/sip_password"/>
 
     <Button
@@ -37,6 +37,12 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="is Registered ?"/>
+    <Button
+        android:id="@+id/clear_log_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/holo_orange_light"
+        android:text="Clear Logs"/>
     <ScrollView
         android:layout_weight="2"
         android:layout_width="match_parent"
@@ -53,20 +59,12 @@
         android:layout_height="wrap_content"
         android:hint="Target Caller Username"
         android:id="@+id/sip_target"/>
-    <Button
+    <ToggleButton
         android:id="@+id/call_btn"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@android:color/holo_green_dark"
         android:textColor="@android:color/white"
-        android:clickable="false"
-        android:text="Call Target"/>
-    <Button
-        android:id="@+id/end_call_btn"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@android:color/holo_red_light"
-        android:textColor="@android:color/white"
-        android:clickable="false"
-        android:text="End Call"/>
+        android:textOn="End Call"
+        android:textOff="Call Target"
+        />
 </LinearLayout>

@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.net.sip.SipAudioCall;
-import android.net.sip.SipProfile;
+import android.os.Bundle;
 import android.util.Log;
 
 /**
@@ -13,10 +13,32 @@ import android.util.Log;
  */
 public class IncomingCallReceiver extends BroadcastReceiver {
     private static final String TAG = "IncomingCallReceiver";
+    SipAudioCall.Listener listener = null;
+    IncomingCallDebug debug;
+
+    public IncomingCallReceiver() {
+    }
+
+    public IncomingCallReceiver(SipAudioCall.Listener listener, IncomingCallDebug debug) {
+        this.listener = listener;
+        this.debug = debug;
+    }
+
+
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(TAG, "onReceive: Intent received "+intent);
-        if(intent!=null)
-        Log.d(TAG, "onReceive: Action is "+intent.getAction());
+        Log.d(TAG, "onReceive: Intent received " + intent);
+        try {
+            debug.logThis(intent.getAction());
+            SipUtils.takeAudioCall(intent, listener);
+            debug.logThis(intent.toString());
+            Bundle bundle = intent.getExtras();
+            for (String k : bundle.keySet()) {
+                String s = bundle.get(k).toString();
+                debug.logThis("Key : "+k);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
