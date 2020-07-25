@@ -102,4 +102,7 @@ public class SipUtils {
     }
 
 
+    public static SipManager getSipManager() {
+        return sipManager;
+    }
 }

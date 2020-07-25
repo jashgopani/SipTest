@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.net.sip.SipAudioCall;
+import android.net.sip.SipSession;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -31,6 +32,9 @@ public class IncomingCallReceiver extends BroadcastReceiver {
         try {
             debug.logThis(intent.getAction());
             SipUtils.takeAudioCall(intent, listener);
+            SipSession sessionFor = SipUtils.getSipManager().getSessionFor(intent);
+            Log.d(TAG, "onReceive: Session Details "+sessionFor.toString());
+            
             debug.logThis(intent.toString());
             Bundle bundle = intent.getExtras();
             for (String k : bundle.keySet()) {

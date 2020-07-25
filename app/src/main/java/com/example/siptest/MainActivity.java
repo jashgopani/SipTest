@@ -2,7 +2,6 @@ package com.example.siptest;
 
 import android.Manifest;
 import android.content.Context;
-import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Color;
 import android.net.sip.SipAudioCall;
@@ -10,12 +9,16 @@ import android.net.sip.SipErrorCode;
 import android.net.sip.SipManager;
 import android.net.sip.SipProfile;
 import android.net.sip.SipRegistrationListener;
+import android.net.sip.SipSession;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
@@ -29,7 +32,7 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
     SipManager sipManager;
     Context context = MainActivity.this;
     EditText myusername, mypassword, targetUsername;
-    Button openProfileBtn, isRegisteredBtn, closeProfileBtn,clearLogBtn;
+    Button openProfileBtn, isRegisteredBtn, closeProfileBtn, clearLogBtn;
     ToggleButton callBtn;
     TextView logtv;
     String username, password;
@@ -39,6 +42,12 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
     String peerUsername = "";
     boolean canCall = false;
     SipAudioCall incomingCall;
+
+    //for incall layout
+    ScrollView logScrollView;
+    LinearLayout inCallLayout;
+    TextView peerNameTv, callStatusTv;
+    ToggleButton toggleSpeaker, toggleMute;
 
     SipRegistrationListener sipRegistrationListener = new SipRegistrationListener() {
         @Override
@@ -72,7 +81,7 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
             Log.d(TAG, "onReadyToCall: AudioCallListener");
             pushToLog("onReadyToCall: AudioCallListener");
             toggleCallButtonState(call);
-
+            updateinCallLayout(call);
         }
 
         @Override
@@ -80,7 +89,7 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
             super.onCalling(call);
             Log.d(TAG, "onCalling: ");
             toggleCallButtonState(call);
-
+            updateinCallLayout(call);
         }
 
         @Override
@@ -88,7 +97,7 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
             super.onRinging(call, caller);
             Log.d(TAG, "onRinging: ");
             toggleCallButtonState(call);
-
+            updateinCallLayout(call);
         }
 
         @Override
@@ -96,6 +105,7 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
             super.onRingingBack(call);
             Log.d(TAG, "onRingingBack: ");
             toggleCallButtonState(call);
+            updateinCallLayout(call);
         }
 
         @Override
@@ -103,8 +113,8 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
             super.onCallEstablished(call);
             Log.d(TAG, "onCallEstablished: SipAudioCall with " + call.getPeerProfile().getAuthUserName());
             toggleCallButtonState(call);
+            updateinCallLayout(call);
             call.startAudio();
-            call.setSpeakerMode(true);
             call.toggleMute();
         }
 
@@ -112,6 +122,7 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
         public void onCallEnded(SipAudioCall call) {
             super.onCallEnded(call);
             toggleCallButtonState(null);
+            updateinCallLayout(null);
             Log.d(TAG, "onCallEnded: Call ended ");
             pushToLog("onCallEnded: Call ended ");
         }
@@ -150,6 +161,8 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
             toggleCallButtonState(call);
         }
     };
+
+
     private IncomingCallReceiver callReceiver;
     private Runnable isRegisteredRunnable = new Runnable() {
         @Override
@@ -161,18 +174,6 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
             }
         }
     };
-
-    private void toggleCallButtonState(SipAudioCall call) {
-        Log.d(TAG, "toggleCallButtonState: Called " + call);
-        runOnUiThread(() -> {
-            incomingCall = call;
-            if (incomingCall == null) callBtn.setChecked(false);
-            else callBtn.setChecked(true);
-
-            boolean flag = callBtn.isChecked();
-            callBtn.setBackgroundColor(flag ? Color.RED : Color.GREEN);
-        });
-    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -190,6 +191,14 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
         isRegisteredBtn = findViewById(R.id.isRegistered_btn);
         callBtn = findViewById(R.id.call_btn);
         clearLogBtn = findViewById(R.id.clear_log_btn);
+
+        //incall layout elements
+        logScrollView = findViewById(R.id.scroll_view);
+        inCallLayout = findViewById(R.id.ongoing_call_layout);
+        peerNameTv = findViewById(R.id.peer_name_tv);
+        callStatusTv = findViewById(R.id.call_status_tv);
+        toggleMute = findViewById(R.id.mute_toggle_button);
+        toggleSpeaker = findViewById(R.id.speaker_toggle_btn);
 
         mainHandler = new Handler();
         toggleCallButtonState(null);
@@ -228,8 +237,21 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
                 }
             });
         });
-        clearLogBtn.setOnClickListener(view->{
+
+        clearLogBtn.setOnClickListener(view -> {
             logtv.setText("");
+        });
+
+        toggleMute.setOnClickListener(view -> {
+            if (incomingCall != null) {
+                incomingCall.toggleMute();
+            }
+        });
+
+        toggleSpeaker.setOnClickListener(view -> {
+            if (incomingCall != null) {
+                incomingCall.setSpeakerMode(toggleSpeaker.isChecked());
+            }
         });
         callBtn.setOnClickListener(view -> {
             if (incomingCall != null) {
@@ -255,6 +277,8 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
                 Manifest.permission.CHANGE_WIFI_STATE,
                 Manifest.permission.RECORD_AUDIO,
                 Manifest.permission.ACCESS_NETWORK_STATE,
+                Manifest.permission.MODIFY_AUDIO_SETTINGS,
+                Manifest.permission.WAKE_LOCK
         };
         try {
             ActivityCompat.requestPermissions(MainActivity.this, permissions, 0);
@@ -282,6 +306,7 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
         setTarget();
         SipUtils.makeAudioCall(currentuser, ("sip:" + peerUsername + "@" + domain), audioCallListener, 30);
         callBtn.setChecked(true);
+        inCallLayout.setVisibility(View.VISIBLE);
 
     }
 
@@ -318,6 +343,53 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
         pushToLog("unregisterProfile: " + (closed ? "Sip Profile Closed Successfully" : "Sip Profile Failed to close"));
     }
 
+    private void toggleCallButtonState(SipAudioCall call) {
+        Log.d(TAG, "toggleCallButtonState: Called " + call);
+        runOnUiThread(() -> {
+            incomingCall = call;
+            if (incomingCall == null) callBtn.setChecked(false);
+            else callBtn.setChecked(true);
+
+            boolean flag = callBtn.isChecked();
+            callBtn.setBackgroundColor(flag ? Color.RED : Color.GREEN);
+            inCallLayout.setVisibility(flag ? View.VISIBLE : View.GONE);
+            logScrollView.setVisibility(flag ? View.GONE : View.VISIBLE);
+        });
+    }
+
+    private void updateinCallLayout(SipAudioCall call) {
+        Log.d(TAG, "updateinCallLayout: ");
+        if (call != null) {
+            Log.d(TAG, "updateinCallLayout: Call is ongoing ");
+            SipProfile peerProfile = call.getPeerProfile();
+            if (peerProfile != null) {
+                String name = peerProfile.getDisplayName();
+                if (name == null || name.trim().length() == 0) name = peerProfile.getUriString();
+                if (name == null || name.trim().length() == 0) name = "UNKNOWN";
+                String finalName = name;
+                runOnUiThread(() -> {
+                    try {
+                        peerNameTv.setText(finalName);
+                        callStatusTv.setText(SipSession.State.toString(call.getState()));
+                        Log.d(TAG, "updateinCallLayout: Mute Button " + toggleMute.isChecked());
+                        Log.d(TAG, "updateinCallLayout: Mute Status " + call.isMuted());
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+            }
+        } else {
+            Log.d(TAG, "updateinCallLayout: No Call is in progress");
+            runOnUiThread(() -> {
+                try {
+                    peerNameTv.setText("");
+                    callStatusTv.setText("");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+    }
 
     public void pushToLog(final String msg) {
         new Handler(getMainLooper()).post(new Runnable() {
