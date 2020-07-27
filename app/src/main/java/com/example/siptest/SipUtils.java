@@ -53,6 +53,7 @@ public class SipUtils {
             intent.setAction(getIntentAction());
             PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, Intent.FILL_IN_DATA);
             try {
+                Log.d(TAG, "openSipProfile: inside try-catch");
                 sipManager.open(profile, pendingIntent, null);
                 sipManager.setRegistrationListener(profile.getUriString(), listener);
             } catch (Exception e) {
@@ -87,7 +88,8 @@ public class SipUtils {
     public static void takeAudioCall(Intent incomingCallIntent, SipAudioCall.Listener listener) {
 
         try {
-            sipManager.takeAudioCall(incomingCallIntent, listener);
+            SipAudioCall sipAudioCall = sipManager.takeAudioCall(incomingCallIntent, listener);
+            listener.onCallEstablished(sipAudioCall);
         } catch (Exception e) {
             e.printStackTrace();
         }

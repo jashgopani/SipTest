@@ -32,9 +32,9 @@ public class IncomingCallReceiver extends BroadcastReceiver {
         try {
             debug.logThis(intent.getAction());
             SipUtils.takeAudioCall(intent, listener);
+            debug.showCallLayout();
             SipSession sessionFor = SipUtils.getSipManager().getSessionFor(intent);
             Log.d(TAG, "onReceive: Session Details "+sessionFor.toString());
-            
             debug.logThis(intent.toString());
             Bundle bundle = intent.getExtras();
             for (String k : bundle.keySet()) {

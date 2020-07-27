@@ -6,6 +6,7 @@ import android.content.IntentFilter;
 import android.graphics.Color;
 import android.net.sip.SipAudioCall;
 import android.net.sip.SipErrorCode;
+import android.net.sip.SipException;
 import android.net.sip.SipManager;
 import android.net.sip.SipProfile;
 import android.net.sip.SipRegistrationListener;
@@ -37,7 +38,7 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
     TextView logtv;
     String username, password;
     SipProfile currentuser;
-    String domain = "sip.allincall.in";
+    String domain = "sip.linphone.org";
     String intentAction = "android.siptest.INCOMING_CALL";
     String peerUsername = "";
     boolean canCall = false;
@@ -299,7 +300,11 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
     }
 
     private void callTarget() {
-
+        try {
+            if(sipManager==null || currentuser==null || !sipManager.isRegistered(currentuser.getUriString()))return;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         if (incomingCall != null && incomingCall.isInCall()) return;
 
         Log.d(TAG, "callTarget: Inside Call Target");
@@ -322,6 +327,7 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
         setTarget();
 
         //Build local profile
+        currentuser = null;
         currentuser = SipUtils.buildLocalProfile(username, password, domain);
 
         if (currentuser != null) {
@@ -415,5 +421,16 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
     public void logThis(String msg) {
         pushToLog(msg);
         Log.d("IncomingCallReceiver", "logThis: " + msg);
+    }
+
+    @Override
+    public void showCallLayout() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                logScrollView.setVisibility(View.GONE);
+                inCallLayout.setVisibility(View.VISIBLE);
+            }
+        });
     }
 }
