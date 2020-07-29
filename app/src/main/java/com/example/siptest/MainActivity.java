@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity implements IncomingCallDebug
     TextView logtv;
     String username, password;
     SipProfile currentuser;
-    String domain = "sip.linphone.org";
+    String domain = "sip.allincall.in";
     String intentAction = "android.siptest.INCOMING_CALL";
     String peerUsername = "";
     boolean canCall = false;

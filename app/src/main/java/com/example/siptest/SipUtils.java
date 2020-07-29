@@ -36,6 +36,7 @@ public class SipUtils {
             builder.setPassword(password);
             builder.setAutoRegistration(true);
             builder.setSendKeepAlive(true);
+            builder.setProtocol("TCP");
             SipProfile profile = builder.build();
 
             Log.d(TAG, "buildLocalProfile: URI " + profile.getUriString());
